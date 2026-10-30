@@ -1,56 +1,105 @@
 <div align="center">
-  <img src="icon.png" width="128" alt="karukan" />
-  <h1>Karukan</h1>
-  <p>日本語入力システム — ニューラルかな漢字変換エンジン + fcitx5 / Windows TSF / macOS IMKit</p>
+  <img src="icon.png" width="128" alt="afrim-desktop" />
+  <h1>Afrim Desktop</h1>
+  <p>A cross-platform input method powered by <a href="https://github.com/fodydev/afrim">afrim</a> — fcitx5 (Linux) / TSF (Windows) / IMKit (macOS)</p>
 
-  [![CI (engine)](https://github.com/togatoga/karukan/actions/workflows/karukan-engine-ci.yml/badge.svg)](https://github.com/togatoga/karukan/actions/workflows/karukan-engine-ci.yml)
-  [![CI (im)](https://github.com/togatoga/karukan/actions/workflows/karukan-im-ci.yml/badge.svg)](https://github.com/togatoga/karukan/actions/workflows/karukan-im-ci.yml)
-  [![CI (macos)](https://github.com/togatoga/karukan/actions/workflows/karukan-macos-ci.yml/badge.svg)](https://github.com/togatoga/karukan/actions/workflows/karukan-macos-ci.yml)
+  [![CI (im)](https://github.com/fodydev/afrim-desktop/actions/workflows/afrim-desktop-im-ci.yml/badge.svg)](https://github.com/fodydev/afrim-desktop/actions/workflows/afrim-desktop-im-ci.yml)
+  [![CI (tsf)](https://github.com/fodydev/afrim-desktop/actions/workflows/afrim-desktop-tsf-ci.yml/badge.svg)](https://github.com/fodydev/afrim-desktop/actions/workflows/afrim-desktop-tsf-ci.yml)
+  [![CI (macos)](https://github.com/fodydev/afrim-desktop/actions/workflows/afrim-desktop-macos-ci.yml/badge.svg)](https://github.com/fodydev/afrim-desktop/actions/workflows/afrim-desktop-macos-ci.yml)
   [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](LICENSE-MIT)
 </div>
 
-<div align="center">
-  <img src="images/demo.gif" width="800" alt="karukan demo" />
-</div>
+Afrim Desktop is a native input method for the three desktop platforms, using
+the [afrim](https://github.com/fodydev/afrim) engine. It types any language
+that has an afrim dataset (sequential codes such as `uuaf3` → `ʉ̄ɑ̄`, plus
+dictionary and script suggestions). One shared engine core runs behind a thin
+native frontend for each platform.
 
-## プロジェクト構成
+## Project layout
 
-| クレート | 説明 |
-|---------|------|
-| [karukan-im](karukan-im/) | karukan-engineを利用したfcitx5向け日本語入力システム (Linux) |
-| [karukan-tsf](karukan-tsf/) | karukan-engineを利用したTSF (Text Services Framework) 向け日本語入力システム (Windows) |
-| [karukan-macos](karukan-macos/) | karukan-engineを利用したIMKit向け日本語入力システム (macOS) |
-| [karukan-engine](karukan-engine/) | コアライブラリ — ローマ字→ひらがな変換 + llama.cppによるニューラルかな漢字変換 |
-| [karukan-cli](karukan-cli/) | CLIツール・サーバー — 辞書ビルド、Sudachi辞書生成、辞書ビューア、AJIMEE-Bench、HTTPサーバー |
+| Crate | Platform | Description |
+|-------|----------|-------------|
+| [afrim-desktop-im](afrim-desktop-im/) | Linux (fcitx5) | Shared engine core (afrim state machine, preedit, candidates, keys) + C FFI + fcitx5 addon |
+| [afrim-desktop-tsf](afrim-desktop-tsf/) | Windows | Text Services Framework input processor (COM DLL) |
+| [afrim-desktop-macos](afrim-desktop-macos/) | macOS | Input Method Kit app (Swift) on top of a Rust static library |
 
-## フォークについて
+```
+            afrim-config ─┐
+      afrim-preprocessor ─┼─► afrim-desktop-im (InputMethodEngine)
+        afrim-translator ─┘        │
+              ┌────────────────────┼─────────────────────┐
+         C FFI (cdylib)       Rust (direct)          C FFI (staticlib)
+              │                    │                     │
+      fcitx5 addon (C++)   TSF text service (COM)   IMKit controller (Swift)
+           Linux                Windows                  macOS
+```
 
-このプロジェクトは [togatoga/karukan](https://github.com/togatoga/karukan) のフォークです。SKKモードの追加、Windows (TSF) およびmacOS (IMKit) への対応を行っています。
+## Install
 
-オリジナルの karukan を開発された [@togatoga](https://github.com/togatoga) さんに深く感謝いたします。
+- **Linux (fcitx5)**: see [afrim-desktop-im](afrim-desktop-im/README.md#install)
+- **Windows (TSF)**: see [afrim-desktop-tsf](afrim-desktop-tsf/README.md#build)
+- **macOS (IMKit)**: see [afrim-desktop-macos](afrim-desktop-macos/README.md)
 
-## 特徴
+## Choosing a dataset
 
-- **ニューラルかな漢字変換**: GPT-2ベースのモデルをllama.cppで推論し、高度な日本語変換
-- **コンテキスト対応**: 周辺テキストを考慮した日本語変換
-- **変換学習**: ユーザーが選択した変換結果を記憶し、次回以降の変換で優先表示。予測変換（前方一致）にも対応し、入力途中でも学習済みの候補を提示
-- **システム辞書**: [SudachiDict](https://github.com/WorksApplications/SudachiDict)の辞書データからシステム辞書を構築
+Afrim Desktop ships with a tiny built-in sample dataset so it works right after
+installation. To type a real language, download a dataset from
+[afrim-data](https://github.com/fodydev/afrim-data) and point Afrim Desktop at
+its `.toml` file. The first match wins:
 
-> **Note:** 初回起動時にHugging Faceからモデルをダウンロードするため、初回の変換開始までに時間がかかります。2回目以降はダウンロード済みのモデルが使用されます。
+1. the `AFRIM_CONFIG` environment variable
+2. `config_path` in the `[afrim]` section of Afrim Desktop's `config.toml`
+3. `afrim/config.toml` next to Afrim Desktop's `config.toml`
+4. the built-in sample
 
-## インストール
+| Platform | Afrim Desktop `config.toml` |
+|----------|-----------------------------|
+| Linux | `~/.config/afrim-desktop/config.toml` |
+| macOS | `~/Library/Application Support/org.fodydev.afrim-desktop/config.toml` |
+| Windows | `%APPDATA%\fodydev\afrim-desktop\config\config.toml` |
 
-- **Linux (fcitx5)**: [karukan-im の README](karukan-im/README.md#install) を参照
-- **Windows (TSF)**: [karukan-tsf の README](karukan-tsf/README.md#build) を参照
-- **macOS (IMKit)**: [karukan-macos の README](karukan-macos/README.md) を参照
+```toml
+[afrim]
+config_path = "/home/me/afrim-data/gm/gm.toml"
+```
 
-## 既知の問題
+Relative paths are resolved against the directory of `config.toml`. The dataset
+format is documented in the [afrim configuration manual](https://fodydev.github.io/afrim-man/configuration/index.html).
+Its `[core]` options (`buffer_size`, `auto_capitalize`, `auto_commit`,
+`page_size`, `min_confidence`), `[translation]` dictionaries and `[translators]`
+Rhai scripts are all supported.
 
-- **macOS: WezTerm で SKK モードの Ctrl+J が効かない** — [karukan-macos の回避策](karukan-macos/README.md#wezterm-で-skk-モードの-ctrlj-が効かない) を参照
+## Keys
 
-## ライセンス
+| Key | While composing |
+|-----|-----------------|
+| Letters, digits, punctuation | Fed to afrim (digits and punctuation are part of codes, e.g. `af3`, `c_`) |
+| Space | Commit, followed by a space |
+| Return | Commit (the highlighted suggestion if you moved to one, otherwise the typed text) |
+| Tab / Shift+Tab, ↓ / ↑ | Move through suggestions |
+| Page Down / Page Up | Next / previous page of suggestions |
+| Backspace | Undo the last afrim step |
+| Esc | Cancel the composition |
+| Ctrl/Alt/Super shortcuts, arrows | Commit, then pass the key to the application |
+| Ctrl+Shift+Space | Toggle between afrim and direct input (any time) |
 
-MIT OR Apache-2.0 のデュアルライセンスで提供しています。
+Clicking a suggestion in the candidate window commits it (fcitx5, macOS).
+
+## History
+
+Afrim Desktop is a fork of [karukan](https://github.com/togatoga/karukan), a
+Japanese input method by [@togatoga](https://github.com/togatoga) that already
+ran natively on fcitx5, Windows TSF and macOS IMKit. Its neural kana-kanji
+engine has been replaced by afrim, so the per-platform afrim frontends
+(afrim-wish, fcitx5-afrim, ibus-afrim) can be replaced by this one project.
+Many thanks to the karukan authors.
+
+## License
+
+Dual-licensed under MIT OR Apache-2.0:
 
 - [MIT License](LICENSE-MIT)
 - [Apache License 2.0](LICENSE-APACHE)
+
+The afrim crates it depends on are licensed under the
+[Mozilla Public License 2.0](https://github.com/fodydev/afrim/blob/main/LICENSE).

@@ -1,0 +1,44 @@
+[package]
+name = "afrim-desktop-im"
+version = "0.1.0"
+edition.workspace = true
+description = "Cross-platform input method engine core for afrim-desktop, powered by afrim"
+license.workspace = true
+authors = ["togatoga", "Brady Fomegne <brady.fomegne@outlook.com>"]
+repository.workspace = true
+homepage.workspace = true
+keywords = ["afrim", "ime", "fcitx5", "input-method"]
+categories = ["text-processing", "internationalization"]
+
+[lib]
+name = "afrim_desktop_im"
+path = "src/lib.rs"
+crate-type = ["lib"]  # rlib for Rust dependents (afrim-desktop-tsf); cdylib for fcitx5 built via `cargo rustc --crate-type cdylib`
+
+[dependencies]
+# Core engine
+afrim-config.workspace = true
+afrim-preprocessor.workspace = true
+afrim-translator.workspace = true
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Configuration
+serde.workspace = true
+toml.workspace = true
+directories = "5"
+
+# Error handling
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
+
+[features]
+default = ["rhai", "strsim"]
+# Rhai scripted translators declared in the afrim `[translators]` section
+rhai = ["afrim-config/rhai", "afrim-translator/rhai"]
+# Fuzzy matching of translation codes
+strsim = ["afrim-translator/strsim"]

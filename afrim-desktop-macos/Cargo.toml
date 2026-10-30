@@ -1,0 +1,30 @@
+[package]
+name = "afrim-desktop-macos"
+version = "0.1.0"
+edition.workspace = true
+description = "macOS Input Method Kit (IMKit) frontend for the afrim-desktop afrim IME"
+license.workspace = true
+authors = ["togatoga", "Brady Fomegne <brady.fomegne@outlook.com>"]
+repository.workspace = true
+homepage.workspace = true
+keywords = ["afrim", "ime", "macos", "input-method", "imkit"]
+categories = ["text-processing", "internationalization"]
+
+[lib]
+name = "afrim_desktop_macos"
+path = "src/lib.rs"
+crate-type = ["staticlib"]
+
+[dependencies]
+# Core engine (reuse afrim-desktop-im's InputMethodEngine directly)
+afrim-desktop-im = { path = "../afrim-desktop-im" }
+
+# Logging
+tracing.workspace = true
+tracing-subscriber.workspace = true
+
+# Error handling
+anyhow.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true

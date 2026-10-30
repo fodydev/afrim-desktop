@@ -1,0 +1,78 @@
+#!/bin/bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(dirname "$SCRIPT_DIR")"
+ROOT_DIR="$(dirname "$PROJECT_DIR")"
+SWIFT_DIR="$PROJECT_DIR/swift/AfrimDesktopInputMethod"
+INCLUDE_DIR="$PROJECT_DIR/include"
+BUILD_DIR="$PROJECT_DIR/build"
+APP_NAME="AfrimDesktop.app"
+APP_DIR="$BUILD_DIR/$APP_NAME"
+
+# Detect architecture
+ARCH="${1:-$(uname -m)}"
+if [ "$ARCH" = "arm64" ]; then
+    TARGET="aarch64-apple-darwin"
+elif [ "$ARCH" = "x86_64" ]; then
+    TARGET="x86_64-apple-darwin"
+else
+    echo "Unsupported architecture: $ARCH"
+    exit 1
+fi
+
+echo "==> Building afrim-desktop-macos static library (target: $TARGET)..."
+cargo build -p afrim-desktop-macos --release --target "$TARGET"
+
+STATIC_LIB="$ROOT_DIR/target/$TARGET/release/libafrim_desktop_macos.a"
+if [ ! -f "$STATIC_LIB" ]; then
+    echo "ERROR: Static library not found at $STATIC_LIB"
+    exit 1
+fi
+
+echo "==> Compiling Swift sources..."
+mkdir -p "$BUILD_DIR"
+
+SWIFT_SOURCES=(
+    "$SWIFT_DIR/main.swift"
+    "$SWIFT_DIR/AfrimDesktopInputController.swift"
+    "$SWIFT_DIR/SettingsView.swift"
+)
+
+SWIFT_FLAGS="-O"
+if [ "${AFRIM_DESKTOP_DEBUG:-}" = "1" ]; then
+    SWIFT_FLAGS="-D DEBUG -Onone -g"
+    echo "    (DEBUG mode enabled)"
+fi
+
+swiftc \
+    -target "${ARCH}-apple-macosx14.0" \
+    $SWIFT_FLAGS \
+    -import-objc-header "$INCLUDE_DIR/afrim_desktop_macos.h" \
+    -L "$(dirname "$STATIC_LIB")" \
+    -lafrim_desktop_macos \
+    -lc++ \
+    -framework Cocoa \
+    -framework InputMethodKit \
+    -framework SwiftUI \
+    -framework Accelerate \
+    -framework Metal \
+    -framework MetalKit \
+    -o "$BUILD_DIR/AfrimDesktopInputMethod" \
+    "${SWIFT_SOURCES[@]}"
+
+echo "==> Assembling .app bundle..."
+rm -rf "$APP_DIR"
+mkdir -p "$APP_DIR/Contents/MacOS"
+mkdir -p "$APP_DIR/Contents/Resources"
+
+cp "$BUILD_DIR/AfrimDesktopInputMethod" "$APP_DIR/Contents/MacOS/"
+cp "$SWIFT_DIR/Info.plist" "$APP_DIR/Contents/"
+echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
+
+# Ad-hoc code sign
+echo "==> Code signing (ad-hoc)..."
+codesign --force --sign - --entitlements "$SWIFT_DIR/Entitlements.plist" "$APP_DIR"
+
+echo "==> Build complete: $APP_DIR"
+echo "    Run scripts/install.sh to install."

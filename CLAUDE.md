@@ -4,204 +4,87 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-karukan is a cross-platform Japanese Input Method system consisting of multiple Rust crates:
+afrim-desktop is a cross-platform input method built on the [afrim](https://github.com/fodydev/afrim) engine (`afrim-config`, `afrim-preprocessor`, `afrim-translator` from crates.io). It is a fork of the karukan Japanese IME whose neural engine was replaced by afrim. Rust crates:
 
-- **karukan-engine**: Core library — romaji-to-hiragana conversion, neural kana-kanji conversion via llama.cpp, system dictionary, learning cache
-- **karukan-cli**: CLI tools and server — dictionary builder, Sudachi converter, dict viewer, AJIMEE-Bench, HTTP API server
-- **karukan-im**: Shared IME engine core — state machine, preedit, candidate list, key handling (used by platform addons)
-- **karukan-macos**: macOS IMKit input method addon using karukan-im/karukan-engine
-- **karukan-tsf**: Windows TSF input method addon using karukan-im/karukan-engine
+- **afrim-desktop-im**: Shared IME engine core — afrim state machine, preedit, candidate list, key handling, settings, C FFI, and the fcitx5 addon (Linux)
+- **afrim-desktop-tsf**: Windows TSF input method (COM DLL) using afrim-desktop-im directly
+- **afrim-desktop-macos**: macOS IMKit input method (Swift app + Rust staticlib) using afrim-desktop-im
 
 ## Build and Development Commands
 
-This project uses a Cargo workspace. All commands are run from the repository root.
-
-### Full workspace
+All commands run from the repository root (Cargo workspace).
 
 ```bash
-cargo build --release       # Build all crates
-cargo test --workspace      # Run all tests
+cargo build --release
+cargo test --workspace
+cargo fmt --all
+cargo clippy --workspace --all-targets -- -D warnings
 ```
 
-### karukan-engine
+### afrim-desktop-im (Linux / fcitx5)
 
 ```bash
-cargo build -p karukan-engine --release
-cargo test -p karukan-engine  # includes integration tests (model auto-downloaded on first run)
-```
+cargo test -p afrim-desktop-im
 
-### karukan-cli
-
-```bash
-cargo build -p karukan-cli --release
-
-# Start the server (auto-downloads models from HuggingFace)
-cargo run --release --bin karukan-server
-
-# Build dictionary from JSON or Mozc TSV
-cargo run --release --bin karukan-dict -- build input.json -o dict.bin
-
-# Build scored dictionary from Sudachi CSV
-cargo run --release --bin sudachi-dict -- input.csv -o scored.json
-
-# Dictionary viewer (web UI + CLI search)
-cargo run --release --bin karukan-dict -- view dict.bin
-
-# AJIMEE-Bench evaluation
-cargo run --release --bin ajimee-bench -- evaluation_items.json
-```
-
-### karukan-im
-
-```bash
-cargo build -p karukan-im --release
-cargo test -p karukan-im
-
-# Build and install fcitx5 addon
-cd karukan-im/fcitx5-addon
-
-# Option A: System install (sudo required, no FCITX_ADDON_DIRS needed)
-cmake -B build -DCMAKE_INSTALL_PREFIX=/usr
+cd afrim-desktop-im/fcitx5-addon
+cmake -B build -DCMAKE_INSTALL_PREFIX=/usr     # or $HOME/.local (needs FCITX_ADDON_DIRS)
 cmake --build build -j
 sudo cmake --install build
-
-# Option B: User-local install (no sudo, requires FCITX_ADDON_DIRS)
-cmake -B build -DCMAKE_INSTALL_PREFIX=$HOME/.local
-cmake --build build -j
-cmake --install build
 ```
 
-### karukan-macos
+### afrim-desktop-tsf (Windows)
 
 ```bash
-cargo build -p karukan-macos --release
-cargo test -p karukan-macos
-
-# Build and install macOS Input Method
-cd karukan-macos
-scripts/build.sh         # cargo build + swiftc + .app bundle
-scripts/install.sh       # Copy to ~/Library/Input Methods/
+cargo build -p afrim-desktop-tsf --release                                   # native MSVC
+cargo build -p afrim-desktop-tsf --release --target x86_64-pc-windows-gnu    # cross (mingw-w64)
+cargo check -p afrim-desktop-tsf --target x86_64-pc-windows-gnu --all-targets  # type-check from Linux, no linker needed
 ```
 
-### karukan-tsf (Windows)
+### afrim-desktop-macos
 
 ```bash
-# Cross-compile from Linux (requires mingw-w64 toolchain)
-cargo build -p karukan-tsf --release --target x86_64-pc-windows-gnu
-
-# Native build on Windows (MSVC)
-# Set CMAKE_MSVC_RUNTIME_LIBRARY to align llama.cpp (CMake) with Rust's default static CRT
-set CMAKE_MSVC_RUNTIME_LIBRARY=MultiThreaded
-cargo build -p karukan-tsf --release
-```
-
-### Code Quality
-
-```bash
-cargo fmt --all       # Format all crates
-cargo clippy --workspace  # Lint all crates
+cd afrim-desktop-macos
+scripts/build.sh     # cargo build + swiftc + .app bundle
+scripts/install.sh   # copy to ~/Library/Input Methods/
+# From Linux: cargo check -p afrim-desktop-macos --target aarch64-apple-darwin (ffi.rs is macOS-only)
 ```
 
 ## Architecture
 
-### karukan-engine (`karukan-engine/src/`)
+### afrim-desktop-im (`afrim-desktop-im/src/`)
 
-- `lib.rs` — Library entry point and re-exports
-- `romaji/` — Romaji-to-hiragana conversion
-  - `trie.rs` — Trie data structure
-  - `rules.rs` — 200+ conversion rule
-  - `converter.rs` — FSM converter
-- `kanji/` — Kana-kanji conversion via llama.cpp
-  - `backend.rs` — Backend + KanaKanjiConverter
-  - `llamacpp.rs` — GGUF inference
-  - `hf_download.rs` — HuggingFace model download
-  - `model_config.rs` — models.toml registry
-  - `error.rs` — KanjiError type
-- `dict.rs` — Double-array trie system dictionary
-- `learning.rs` — Learning cache (user conversion history, TSV persistence, recency+frequency scoring)
-- `kana.rs` — Hiragana/katakana utilities
+- `core/engine/mod.rs` — `InputMethodEngine`: Empty → Composing → Empty; `classify()` maps a key to a `KeyAction` without side effects, used by both `would_consume_key` (TSF `OnTestKeyDown`) and `process_key` so they always agree
+- `core/engine/afrim.rs` — `AfrimCore`: wraps afrim's `Preprocessor` + `Translator`, loads configs (file or embedded sample via afrim's `FileSystem` trait)
+- `core/engine/types.rs` — `EngineAction`, `EngineResult`, `EngineConfig`, `InputMode` (Afrim / Direct), `KeyAction`
+- `core/engine/tests.rs` — engine tests
+- `core/preedit.rs`, `core/candidate.rs`, `core/keycode.rs` (XKB keysyms), `core/state.rs`
+- `config/settings.rs` — Settings (`[afrim] config_path`) and afrim config path resolution
+- `ffi/` — C ABI for the fcitx5 addon (header: `include/afrim_desktop.h`)
+- `fcitx5-addon/src/afrim-desktop.cpp` — C++ fcitx5 wrapper
+- `config/default.toml` — default settings; `config/afrim-sample.toml` — built-in afrim dataset
 
-### karukan-cli (`karukan-cli/src/`)
+### afrim-desktop-tsf (`afrim-desktop-tsf/src/`)
 
-- `bin/dict.rs` — Dictionary tool: build (JSON or Mozc TSV → binary) and view (web UI + CLI search)
-- `bin/sudachi_dict.rs` — Sudachi dictionary → scored JSON converter
-- `bin/server.rs` — Axum HTTP API server
-- `bin/ajimee_bench.rs` — AJIMEE-Bench evaluation
-- `static/` — Web UI assets for server and dict-viewer
+- `engine_bridge.rs` — wraps `InputMethodEngine` for TSF; `keymap.rs` — VK → keysym
+- `tsf/` — TSF COM implementations (key event sink, edit session, composition sink, lang bar, ...)
+- `globals.rs` — CLSID / profile / GUIDs, profile LANGID (en-US)
+- `candidate/` — Direct2D candidate window
 
-### karukan-im (`karukan-im/src/`)
+### afrim-desktop-macos (`afrim-desktop-macos/src/`)
 
-- `core/engine/` — IMEEngine state machine (Empty → Composing → Conversion)
-  - `mod.rs` — Main InputMethodEngine struct and core processing logic
-  - `types.rs` — EngineConfig, EngineResult, EngineAction, Converters, ConversionStrategy
-  - `input.rs` — Key input handling for Composing state
-  - `input_buffer.rs` — Input buffer (hiragana text + cursor position)
-  - `conversion.rs` — Conversion mode handling
-  - `cursor.rs` — Cursor movement
-  - `display.rs` — Preedit text display
-  - `mode.rs` — Mode switching (katakana, alphabet, live conversion)
-  - `init.rs` — Model loading, dictionary setup, learning cache init
-  - `strategy.rs` — Conversion strategy determination and adaptive model selection
-  - `tests.rs` — Engine unit tests
-- `core/preedit.rs` — Preedit composition with cursor support
-- `core/candidate.rs` — Candidate list with pagination support
-- `core/keycode.rs` — Key symbol definitions and key event handling
-- `core/state.rs` — Engine state definitions
-- `config/settings.rs` — User settings (`~/.config/karukan-im/config.toml`)
-- `ffi.rs` — C FFI for fcitx5 C++ addon
-- `fcitx5-addon/src/karukan.cpp` — C++ fcitx5 wrapper
-
-### karukan-macos (`karukan-macos/src/`)
-
-- `lib.rs` — Library entry point with macOS cfg guard
-- `engine_bridge.rs` — EngineBridge wrapper (same pattern as karukan-tsf)
-- `keymap.rs` — macOS Carbon key code → Keysym mapping
-- `ffi.rs` — C FFI for Swift IMKit integration
-- `swift/KarukanInputMethod/` — Swift IMKit app (IMKInputController, IMKCandidates, settings)
-- `include/karukan_macos.h` — C FFI header
-- `scripts/` — Build and install scripts
-
-### karukan-tsf (`karukan-tsf/src/`)
-
-- `lib.rs` — DLL entry point (COM DllGetClassObject / DllCanUnloadNow)
-- `globals.rs` — Global state (CLSID, profile GUID)
-- `engine_bridge.rs` — Bridge between TSF and karukan-im's InputMethodEngine
-- `keymap.rs` — Windows virtual key → karukan Keysym mapping
-- `registration.rs` — COM/TSF server registration
-- `candidate/` — Candidate window
-  - `mod.rs` — Candidate list management
-  - `window.rs` — Candidate window rendering (Direct2D/DirectWrite)
-- `tsf/` — Windows TSF COM implementations
-  - `mod.rs` — Module declarations
-  - `text_input_processor.rs` — ITfTextInputProcessorEx implementation
-  - `key_event_sink.rs` — ITfKeyEventSink (key input handling)
-  - `edit_session.rs` — ITfEditSession (preedit/commit text operations)
-  - `composition_sink.rs` — ITfCompositionSink
-  - `thread_mgr_sink.rs` — ITfThreadMgrEventSink
-  - `class_factory.rs` — IClassFactory for COM registration
-  - `display_attribute.rs` — ITfDisplayAttributeProvider (preedit styling)
-  - `lang_bar.rs` — Language bar item (input mode indicator)
-  - `compartment.rs` — TSF compartment utilities
-  - `context_reader.rs` — Surrounding text reader
+- `engine_bridge.rs`, `keymap.rs` (Carbon key code → keysym), `ffi.rs` (C ABI for Swift, header `include/afrim_desktop_macos.h`)
+- `swift/AfrimDesktopInputMethod/` — IMKit app (controller, candidates, settings view)
 
 ## Key Design Patterns
 
-- IMEEngine uses a state machine: Empty → Composing → Conversion
-- `input_buf: InputBuffer` in IMEEngine is the source of truth for hiragana text (`.text` field holds the composed hiragana, `.cursor_pos` tracks cursor position)
-- RomajiConverter accumulates output; consumed into input_buf via delta tracking
-- Models use jinen format with special Unicode tokens (U+EE00–U+EE02) from the Private Use Area; model input is katakana (hiragana is converted to katakana before inference)
-- Model registry defined in `karukan-engine/models.toml`; default models use Q5_K_M quantization
-- Learning cache records user-selected conversions and boosts them on subsequent conversions; candidate priority: Learning → User Dictionary → Model → System Dictionary → Fallback
-- Learning cache is persisted as TSV (`~/.local/share/karukan-im/learning.tsv`); saved on deactivate and engine free, not on every commit
-- Learning score uses recency-weighted formula (mozc-inspired): `recency * 10.0 + ln(1 + frequency)`; eviction removes lowest-score entries when over `max_entries` (default: 10,000)
-
-## Training (karukan-jinen)
-
-Model training is handled by the separate `karukan-jinen` Python project (not in this repository). It trains GPT-2 based models for kana-kanji conversion using the jinen format, and outputs GGUF files for use with karukan-engine.
+- afrim's preprocessor was built for frontends that type into the app: it emits `Delete(text)` / `CommitText(text)` commands. `AfrimCore` applies them to an in-memory `composed` string (push the typed key first, then delete `text.chars().count()` chars per `Delete`). `Pause`/`Resume` are ignored.
+- Backspace rollback follows afrim: undoing `uu` (→ `ʉ`) removes the whole sequence, not one char.
+- Digits and punctuation are part of afrim codes (`af3`, `c_`), so they are always fed to afrim and never select candidates. Candidate selection uses Tab/arrows + Return, or `select_candidate(index)` (0-based, exposed as `afrim_desktop_engine_select_candidate` / `afrim_desktop_macos_select_candidate`) for mouse clicks.
+- Commit actions are emitted in the order `UpdatePreedit(empty)`, `HideCandidates`, `HideAuxText`, `Commit(text)` (the TSF edit session relies on it).
+- afrim's memory is `Rc`-based (not `Send`); every frontend drives the engine from one UI thread.
+- Afrim dataset lookup: `$AFRIM_CONFIG` → `[afrim] config_path` (relative to the config dir) → `<config dir>/afrim/config.toml` → embedded sample. A failed load keeps the previous dataset and returns an error to the frontend.
+- The C ABIs keep `set_surrounding_text`, `save_learning` and `get_last_conversion_ms` as no-ops/aliases for compatibility with the C++/Swift callers.
 
 ## Documenting Known Issues
 
-When a platform-specific known issue or workaround is identified:
-
-1. Add the issue and workaround to the corresponding platform README's「既知の問題と回避策」section (e.g., `karukan-macos/README.md`, `karukan-tsf/README.md`, `karukan-im/README.md`). Create the section if it doesn't exist.
-2. Add a one-line pointer in the root `README.md`'s「既知の問題」section linking to the platform README's specific heading.
+When a platform-specific known issue or workaround is identified, add it to the corresponding platform README's "Known issues and workarounds" section (e.g. `afrim-desktop-tsf/README.md`), creating the section if needed.

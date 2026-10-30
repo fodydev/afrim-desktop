@@ -1,0 +1,98 @@
+name: afrim-desktop-tsf CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'afrim-desktop-tsf/**'
+      - 'afrim-desktop-im/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/afrim-desktop-tsf-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'afrim-desktop-tsf/**'
+      - 'afrim-desktop-im/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/afrim-desktop-tsf-ci.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check-windows:
+    name: Check (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Run cargo check
+        run: cargo check -p afrim-desktop-tsf --all-targets
+
+  clippy-windows:
+    name: Clippy (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Run cargo clippy
+        run: cargo clippy -p afrim-desktop-tsf --all-targets -- -D warnings
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Run cargo fmt
+        run: cargo fmt -p afrim-desktop-tsf -- --check
+
+  test-linux:
+    name: Test (Linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Run tests
+        run: cargo test -p afrim-desktop-tsf
+
+  build-windows:
+    name: Build (Windows)
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Build release
+        run: cargo build -p afrim-desktop-tsf --release
+      - name: Install NSIS
+        uses: negrutiu/nsis-install@v2
+      - name: Build NSIS installer
+        run: |
+          copy target\release\afrim_desktop_tsf.dll afrim-desktop-tsf\installer\
+          makensis /DVERSION=dev afrim-desktop-tsf\installer\afrim-desktop-installer.nsi
+        shell: cmd
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AfrimDesktop-windows-x86_64
+          path: afrim-desktop-tsf/installer/AfrimDesktop-Setup-*.exe
+          retention-days: 14
