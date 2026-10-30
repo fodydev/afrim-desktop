@@ -1,0 +1,48 @@
+# Built-in afrim sample dataset
+#
+# Used by afrim-desktop when no afrim configuration file is found.
+# Replace it with a real dataset from https://github.com/fodydev/afrim-data
+# (see `[afrim] config_path` in afrim-desktop's config.toml).
+
+[info]
+name = "AfrimDesktop sample"
+description = "Minimal afrim dataset shipped with afrim-desktop for first-run testing."
+
+[core]
+buffer_size = 64
+auto_capitalize = true
+auto_commit = false
+page_size = 9
+min_confidence = 0.7
+
+[data]
+af    = { value = "ɑ", alias = ["qf"] }
+aff   = { value = "ɑɑ", alias = ["qff"] }
+aff3  = { value = "ɑ̄ɑ̄", alias = ["qff3"] }
+af2   = "ɑ́"
+af3   = "ɑ̄"
+a2    = "á"
+a3    = "ā"
+e2    = "é"
+e3    = "ē"
+i2    = "í"
+i3    = "ī"
+o2    = "ó"
+o3    = "ō"
+u2    = "ú"
+u3    = "ū"
+uu    = "ʉ"
+uu2   = "ʉ́"
+uu3   = "ʉ̄"
+uuaf3 = "ʉ̄ɑ̄"
+ee    = "ɛ"
+ai    = "ɛ"
+oo    = "ɔ"
+"n*"  = "ŋ"
+c_    = { value = "ç", alias = ["c8"] }
+
+[translation]
+halo = "hello"
+hello = "hi"
+heal = { value = "health", alias = ["heql"] }
+vuue = "vʉe"

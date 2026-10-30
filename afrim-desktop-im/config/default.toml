@@ -1,0 +1,19 @@
+# Afrim Desktop default settings
+#
+# Location of this file:
+#   Linux:   ~/.config/afrim-desktop/config.toml
+#   macOS:   ~/Library/Application Support/org.fodydev.afrim-desktop/config.toml
+#   Windows: %APPDATA%\fodydev\afrim-desktop\config\config.toml
+
+[afrim]
+# Path to the afrim configuration file (the dataset to type with).
+# Relative paths are resolved against the directory of this file.
+#
+# Lookup order when the IME starts:
+#   1. the AFRIM_CONFIG environment variable
+#   2. this `config_path` setting
+#   3. afrim/config.toml next to this file
+#   4. the small sample dataset built into afrim-desktop
+#
+# Ready-to-use datasets: https://github.com/fodydev/afrim-data
+# config_path = "afrim/config.toml"

@@ -1,0 +1,102 @@
+name: afrim-desktop-macos CI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'afrim-desktop-macos/**'
+      - 'afrim-desktop-im/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/afrim-desktop-macos-ci.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'afrim-desktop-macos/**'
+      - 'afrim-desktop-im/**'
+      - 'Cargo.toml'
+      - 'Cargo.lock'
+      - '.github/workflows/afrim-desktop-macos-ci.yml'
+
+env:
+  CARGO_TERM_COLOR: always
+  RUST_BACKTRACE: 1
+
+jobs:
+  check-macos:
+    name: Check (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Run cargo check
+        run: cargo check -p afrim-desktop-macos --all-targets
+
+  clippy-macos:
+    name: Clippy (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Run cargo clippy
+        run: cargo clippy -p afrim-desktop-macos --all-targets -- -D warnings
+
+  fmt:
+    name: Format
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
+      - name: Run cargo fmt
+        run: cargo fmt -p afrim-desktop-macos -- --check
+
+  test:
+    name: Test (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Run tests
+        run: cargo test -p afrim-desktop-macos
+
+  build-macos-app:
+    name: Build .app (macOS)
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: ". -> target"
+      - name: Build .app bundle
+        run: |
+          cd afrim-desktop-macos
+          bash scripts/build.sh arm64
+      - name: Verify .app bundle
+        run: |
+          test -f afrim-desktop-macos/build/AfrimDesktop.app/Contents/MacOS/AfrimDesktopInputMethod
+          test -f afrim-desktop-macos/build/AfrimDesktop.app/Contents/Info.plist
+          codesign --verify afrim-desktop-macos/build/AfrimDesktop.app
+      - name: Package .app for upload
+        run: |
+          cd afrim-desktop-macos/build
+          ditto -c -k --keepParent AfrimDesktop.app AfrimDesktop-macos-arm64.zip
+      - name: Upload .app artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: AfrimDesktop-macos-arm64
+          path: afrim-desktop-macos/build/AfrimDesktop-macos-arm64.zip
+          retention-days: 14

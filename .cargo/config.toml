@@ -1,3 +1,0 @@
-[env]
-CMAKE_MSVC_RUNTIME_LIBRARY = { value = "MultiThreaded", force = true }
-LLAMA_STATIC_CRT = { value = "1", force = true }
